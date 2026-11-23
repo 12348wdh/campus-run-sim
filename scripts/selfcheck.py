@@ -50,6 +50,7 @@ def main():
     rows = json.loads("[" + raw_sample.decode("utf-8").strip() + "]")
     check("example route parses, LF only, BD-09 range",
           len(rows) > 100 and b"\r" not in raw_sample
+          and (float(rows[0]["lat"]), float(rows[0]["lng"])) != (float(rows[-1]["lat"]), float(rows[-1]["lng"]))
           and all(30.9 < float(r["lat"]) < 30.95 and 121.68 < float(r["lng"]) < 121.72 for r in rows),
           str(len(rows)) + " pts")
 
