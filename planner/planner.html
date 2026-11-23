@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>校园跑路线规划器</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  html,body{margin:0;height:100%;font:14px/1.5 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;background:#111;color:#eee}
+  #map{position:absolute;inset:0}
+  #panel{position:absolute;z-index:900;top:12px;left:12px;width:286px;background:rgba(18,20,26,.94);border:1px solid #2a3040;border-radius:12px;padding:14px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+  h1{font-size:15px;margin:0 0 6px}
+  .hint{font-size:12px;color:#8b97ab;margin:0 0 10px}
+  .row{display:flex;gap:8px;margin:8px 0;flex-wrap:wrap}
+  button{flex:1 1 auto;min-width:78px;padding:8px 10px;border-radius:8px;border:1px solid #39415a;background:#1d2230;color:#e8eefc;cursor:pointer;font-size:13px}
+  button:hover{background:#273044}
+  button.primary{background:#1f6feb;border-color:#1f6feb;font-weight:600}
+  button.warn{background:#3a2226;border-color:#6b3038}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .stat{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;margin:3px 0;font-size:13px}
+  .stat b{color:#7fd1a0;font-weight:600}
+  label.chk{display:flex;align-items:center;gap:6px;font-size:13px;color:#c7d2e4}
+  #status{font-size:12px;color:#9fb0c9;margin-top:8px;min-height:32px;white-space:pre-wrap}
+  #legend{position:absolute;z-index:900;right:12px;bottom:12px;background:rgba(18,20,26,.9);border:1px solid #2a3040;border-radius:10px;padding:8px 12px;font-size:12px;color:#93a1b8}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>校园跑路线规划器</h1>
+  <p class="hint">在地图上依次点击生成路线，可拖动圆点微调。底图是高德（GCJ-02），保存时自动转成 run.py 需要的 BD-09。</p>
+  <div class="stat"><span>点数</span><b id="npts">0</b></div>
+  <div class="stat"><span>路线长度</span><b id="len">0 m</b></div>
+  <div class="stat"><span>1 km 需跑</span><b id="laps">-</b></div>
+  <div class="row"><label class="chk"><input type="checkbox" id="closed" checked> 首尾相接成环</label></div>
+  <div class="row">
+    <button id="undo">撤销</button>
+    <button id="clear" class="warn">清空</button>
+  </div>
+  <div class="row">
+    <button id="save" class="primary">保存并重启模拟</button>
+  </div>
+  <div class="row">
+    <button id="fit">回到操场</button>
+    <button id="sat">卫星/路网</button>
+  </div>
+  <div id="status">等待画线…</div>
+</div>
+<div id="legend">操场中心参考点 = 绿圈 · 每段 4 m 打点 · 速度 2.9 m/s</div>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const trackCenter = [30.93200, 121.69420];   // GCJ-02 approximation of the athletics track
+const road = 'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}';
+const sat  = 'https://webst0{s}.is.autonavi.com/appmaptile?style=6&x={x}&y={y}&z={z}';
+
+const map = L.map('map', {center: trackCenter, zoom: 18, zoomControl: false, attributionControl: false});
+const tiles = {};
+tiles.road = L.tileLayer(road, {subdomains: '1234', maxZoom: 19}).addTo(map);
+tiles.sat  = L.tileLayer(sat,  {subdomains: '1234', maxZoom: 19});
+L.control.zoom({position: 'bottomleft'}).addTo(map);
+L.circleMarker(trackCenter, {radius: 9, color: '#39d353', weight: 2, fillOpacity: .18}).addTo(map);
+
+let pts = [];
+let line = L.polyline([], {color: '#3b82f6', weight: 4, opacity: .95}).addTo(map);
+let markers = [];
+let usingSat = false;
+
+function dist(a, b) {
+  const mlat = 110540, mlng = 111320 * Math.cos((a.lat + b.lat) / 2 * Math.PI / 180);
+  return Math.hypot((b.lat - a.lat) * mlat, (b.lng - a.lng) * mlng);
+}
+function totalLen() {
+  let d = 0;
+  for (let i = 1; i < pts.length; i++) d += dist(pts[i - 1], pts[i]);
+  if (document.getElementById('closed').checked && pts.length > 2) d += dist(pts[pts.length - 1], pts[0]);
+  return d;
+}
+function redraw() {
+  line.setLatLngs(pts.map(p => [p.lat, p.lng]));
+  document.getElementById('npts').textContent = pts.length;
+  const d = totalLen();
+  document.getElementById('len').textContent = d >= 1000 ? (d / 1000).toFixed(2) + ' km' : d.toFixed(0) + ' m';
+  document.getElementById('laps').textContent = d > 0 ? (1000 / d).toFixed(2) + ' 圈' : '-';
+}
+function addMarker(p, idx) {
+  const m = L.circleMarker([p.lat, p.lng], {radius: 6, color: '#fff', weight: 2, fillColor: '#3b82f6', fillOpacity: 1, draggable: true}).addTo(map);
+  m.on('drag', e => {
+    const ll = e.target.getLatLng();
+    pts[idx] = {lat: ll.lat, lng: ll.lng};
+    line.setLatLngs(pts.map(q => [q.lat, q.lng]));
+  });
+  m.on('dragend', () => redraw());
+  m.on('contextmenu', () => { removeAt(idx); });
+  markers.push(m);
+}
+function removeAt(idx) {
+  map.removeLayer(markers[idx]);
+  markers.splice(idx, 1);
+  pts.splice(idx, 1);
+  redraw();
+}
+map.on('click', e => {
+  pts.push({lat: e.latlng.lat, lng: e.latlng.lng});
+  addMarker({lat: e.latlng.lat, lng: e.latlng.lng}, pts.length - 1);
+  redraw();
+});
+document.getElementById('undo').onclick = () => { if (pts.length) removeAt(pts.length - 1); };
+document.getElementById('clear').onclick = () => { while (markers.length) map.removeLayer(markers.pop()); pts = []; redraw(); document.getElementById('status').textContent = '已清空'; };
+document.getElementById('fit').onclick = () => map.setView(trackCenter, 18);
+document.getElementById('sat').onclick = () => {
+  usingSat = !usingSat;
+  if (usingSat) { map.removeLayer(tiles.road); tiles.sat.addTo(map); }
+  else { map.removeLayer(tiles.sat); tiles.road.addTo(map); }
+};
+['closed'].forEach(id => document.getElementById(id).addEventListener('change', redraw));
+document.getElementById('save').onclick = async () => {
+  const st = document.getElementById('status');
+  if (pts.length < 2) { st.textContent = '至少画 2 个点'; return; }
+  st.textContent = '保存中…';
+  try {
+    const body = {points: pts.map(p => [p.lat, p.lng]), closed: document.getElementById('closed').checked, densify_m: 4};
+    const r = await fetch('/save', {method: 'POST', body: JSON.stringify(body)});
+    const j = await r.json();
+    if (!j.ok) { st.textContent = '保存失败: ' + j.error; return; }
+    st.textContent = '已写入 route.txt：' + j.points + ' 点，一圈 ' + j.lap + ' m\n正在重启模拟（会弹 UAC，点“是”）…';
+    await fetch('/restart', {method: 'POST', body: '{}'});
+    st.textContent += '\n已拉起新进程，手机定位将以新路线移动。';
+  } catch (e) { st.textContent = '出错: ' + e; }
+};
+redraw();
+</script>
+</body>
+</html>

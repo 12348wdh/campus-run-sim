@@ -1,0 +1,10 @@
+.pylibs/
+pymd_home/
+*.log
+*.err
+route.txt
+.restart
+mount.out
+mount.err
+__pycache__/
+*.pyc
