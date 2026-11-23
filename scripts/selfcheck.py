@@ -64,6 +64,9 @@ def main():
         check("planner GET /", ok)
         check("page loads leaflet + amap tiles",
               "leaflet" in page.lower() and "autonavi.com" in page, str(len(page)) + " bytes")
+        check("page has cadence helper",
+              "步频助手" in page and 'id="bpm"' in page and "AudioContext" in page,
+              str(page.count("cadbox")) + " cadbox")
 
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/state", timeout=2) as resp:
             state = json.loads(resp.read().decode("utf-8"))

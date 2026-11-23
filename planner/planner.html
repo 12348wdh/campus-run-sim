@@ -22,6 +22,11 @@
   label.chk{display:flex;align-items:center;gap:6px;font-size:13px;color:#c7d2e4}
   #status{font-size:12px;color:#9fb0c9;margin-top:8px;min-height:32px;white-space:pre-wrap}
   #legend{position:absolute;z-index:900;right:12px;bottom:12px;background:rgba(18,20,26,.9);border:1px solid #2a3040;border-radius:10px;padding:8px 12px;font-size:12px;color:#93a1b8}
+  #cadbox{margin-top:10px;border-top:1px solid #2a3040;padding-top:8px}
+  #cadbox summary{cursor:pointer;color:#9fb0c9;font-size:13px;outline:none}
+  #cadbox input[type=range]{width:100%;margin:6px 0}
+  .beatdot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#39415a;margin-left:6px;vertical-align:middle}
+  .beatdot.on{background:#39d353;box-shadow:0 0 8px #39d353}
 </style>
 </head>
 <body>
@@ -44,6 +49,17 @@
     <button id="fit">回到操场</button>
     <button id="sat">卫星/路网</button>
   </div>
+  <details id="cadbox">
+    <summary>步频助手（80–280 次/分）</summary>
+    <div class="stat"><span>节拍</span><b><span id="bpmv">165</span> 次/分</b></div>
+    <input id="bpm" type="range" min="80" max="280" step="5" value="165">
+    <div class="row">
+      <button id="beat">开始节拍</button>
+      <button id="beatreset">归零</button>
+    </div>
+    <div class="stat"><span>已响 <span class="beatdot" id="bdot"></span></span><b id="bcnt">0</b></div>
+    <div class="hint" style="margin:6px 0 0">按下开始后跟着“哒”声上下摇手机（幅度 5–10 cm），节拍数即步频。</div>
+  </details>
   <div id="status">等待画线…</div>
 </div>
 <div id="legend">操场中心参考点 = 绿圈 · 每段 4 m 打点 · 速度 2.9 m/s</div>
@@ -126,6 +142,50 @@ document.getElementById('save').onclick = async () => {
     await fetch('/restart', {method: 'POST', body: '{}'});
     st.textContent += '\n已拉起新进程，手机定位将以新路线移动。';
   } catch (e) { st.textContent = '出错: ' + e; }
+};
+let ac = null, beatTimer = null, nextBeat = 0, bpm = 165, beats = 0, beatOn = false;
+const bpmInput = document.getElementById('bpm');
+bpmInput.addEventListener('input', () => {
+  bpm = +bpmInput.value;
+  document.getElementById('bpmv').textContent = bpm;
+});
+function click(time) {
+  const osc = ac.createOscillator(), g = ac.createGain();
+  osc.frequency.value = 1050;
+  g.gain.setValueAtTime(0.0001, time);
+  g.gain.exponentialRampToValueAtTime(0.35, time + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
+  osc.connect(g).connect(ac.destination);
+  osc.start(time); osc.stop(time + 0.06);
+}
+function schedule() {
+  while (nextBeat < ac.currentTime + 0.12) {
+    click(nextBeat);
+    nextBeat += 60 / bpm;
+    beats++;
+    const dot = document.getElementById('bdot');
+    setTimeout(() => {
+      document.getElementById('bcnt').textContent = beats;
+      dot.classList.add('on');
+      setTimeout(() => dot.classList.remove('on'), 110);
+    }, Math.max(0, (nextBeat - 60 / bpm - ac.currentTime) * 1000));
+  }
+}
+document.getElementById('beat').onclick = async () => {
+  const btn = document.getElementById('beat');
+  if (beatOn) {
+    beatOn = false; clearInterval(beatTimer); btn.textContent = '开始节拍';
+    if (ac) { await ac.close(); ac = null; }
+    return;
+  }
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  await ac.resume();
+  beatOn = true; btn.textContent = '停止节拍';
+  nextBeat = ac.currentTime + 0.1;
+  beatTimer = setInterval(schedule, 25);
+};
+document.getElementById('beatreset').onclick = () => {
+  beats = 0; document.getElementById('bcnt').textContent = '0';
 };
 redraw();
 </script>
