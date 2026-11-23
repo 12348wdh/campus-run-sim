@@ -1,4 +1,5 @@
 .pylibs/
+.venv/
 pymd_home/
 *.log
 *.err

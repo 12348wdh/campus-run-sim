@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import shutil
 import tempfile
 import threading
 import time
@@ -40,11 +41,15 @@ def main():
     loop = make_route_loop.loop_points(lat, lng, 130, 72, 16, 4)
     check("loop point count", len(loop) > 50, str(len(loop)))
 
-    tmp = os.path.join(tempfile.mkdtemp(), "route_check.txt")
-    with open(tmp, "w", encoding="utf-8") as fh:
-        fh.write(",\n".join('{"lng": "%s", "lat": "%s"}' % (f"{p[1]:.10f}", f"{p[0]:.10f}") for p in loop))
-    text = open(tmp, encoding="utf-8").read()
-    parsed = json.loads("[" + text + "]")
+    tmpdir = tempfile.mkdtemp()
+    try:
+        tmp = os.path.join(tmpdir, "route_check.txt")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(",\n".join('{"lng": "%s", "lat": "%s"}' % (f"{p[1]:.10f}", f"{p[0]:.10f}") for p in loop))
+        text = open(tmp, encoding="utf-8").read()
+        parsed = json.loads("[" + text + "]")
+    finally:
+        shutil.rmtree(tmpdir, ignore_errors=True)
     check("route.txt parses as json list", len(parsed) == len(loop))
     raw_sample = open(os.path.join(REPO, "examples", "route.sample.txt"), "rb").read()
     rows = json.loads("[" + raw_sample.decode("utf-8").strip() + "]")
