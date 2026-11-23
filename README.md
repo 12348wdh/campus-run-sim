@@ -1,8 +1,12 @@
 # campus-run-sim
 
+[![selfcheck](https://github.com/12348wdh/campus-run-sim/actions/workflows/selfcheck.yml/badge.svg)](https://github.com/12348wdh/campus-run-sim/actions/workflows/selfcheck.yml)
+
 把 iPhone 的定位仿真成校园跑路线：一键安装、网页画线、免 UAC 热重启。
 
 本仓库是 [MTDickens/iOSRealRun-cli-18](https://github.com/MTDickens/iOSRealRun-cli-18) 的外围工具，不重复它的代码，只解决三件事：改坐标要手搓 JSON、重启要手动提权、路线画不直观。
+
+![规划器](docs/planner.png)
 
 ## 三步上手
 
@@ -134,6 +138,7 @@ campus-run-sim/
 ├─ planner/   route_plan.py  planner.html
 ├─ tools/     make_route*.py
 ├─ windows/   start.ps1  restart_watch.ps1
+├─ docs/      planner.png
 ├─ scripts/   selfcheck.py  setup_deps.py
 └─ examples/  route.sample.txt
 ```
