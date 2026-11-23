@@ -59,6 +59,19 @@ def main():
           and all(30.9 < float(r["lat"]) < 30.95 and 121.68 < float(r["lng"]) < 121.72 for r in rows),
           str(len(rows)) + " pts")
 
+    tmpd = tempfile.mkdtemp()
+    try:
+        cfg = os.path.join(tmpd, "config.yaml")
+        with open(cfg, "w", encoding="utf-8") as fh:
+            fh.write('v: 5.56\nrouteConfig: "route.txt"\n')
+        subprocess.run([sys.executable, os.path.join(REPO, "tools", "set_speed.py"),
+                        "--root", tmpd, "--speed", "2.9"], check=True, capture_output=True)
+        patched = open(cfg, encoding="utf-8").read()
+        check("set_speed patches v only",
+              "v: 2.9" in patched and 'routeConfig: "route.txt"' in patched)
+    finally:
+        shutil.rmtree(tmpd, ignore_errors=True)
+
     port = 8951
     env = dict(os.environ, IOSRUN_ROOT=REPO, PLAN_PORT=str(port))
     proc = subprocess.Popen([sys.executable, os.path.join(REPO, "planner", "route_plan.py")],
