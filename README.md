@@ -38,6 +38,7 @@ powershell -ExecutionPolicy Bypass -File planner.ps1   # 4. 画线 http://127.0.
 | `tools/make_route_loop.py` | 跑道型圆角矩形（标准操场形状） |
 | `tools/make_route_rect.py` | 任意圆角矩形，附带 `wgs84_to_bd09()` / `m_per_deg()` |
 | `tools/make_route_cover.py` | 蛇形扫场：线距 ≤ 2×判定半径，保证打卡点全覆盖 |
+| `tools/set_speed.py` | 只改 `config.yaml` 的 `v:`，其他键不动 |
 | `scripts/selfcheck.py` | 自检：导入、坐标、route.txt、规划器接口、页面资源 |
 
 ## 前置条件
@@ -64,7 +65,7 @@ powershell -ExecutionPolicy Bypass -File planner.ps1
 4. 「卫星/路网」切换高德卫星图看清跑道边界
 5. 「保存并重启模拟」写 route.txt 并触发 `.restart`，守护进程 2 秒内热重启
 
-> 热重启要先跑一次 `windows/restart_watch.ps1`（提权一次，之后一直有效）。不跑它时「保存」只写文件，需要重新执行 `run.ps1`。
+> 热重启用 `run.ps1 -Watch` 启动一次即可（提权一次，之后一直有效）。普通模式下「保存」只写文件，需要重新执行 `run.ps1`。
 
 ### B. 命令行生成路线
 
@@ -84,8 +85,9 @@ python tools\make_route_cover.py --lat 30.9283099 --lng 121.6896685 --len 150 --
 ### C. 启动与停止
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File run.ps1                     # 启动（弹 UAC）
-powershell -ExecutionPolicy Bypass -File windows\restart_watch.ps1   # 常驻守护，之后保存即重启
+powershell -ExecutionPolicy Bypass -File run.ps1                    # 启动（弹 UAC），Ctrl+C 停止
+powershell -ExecutionPolicy Bypass -File run.ps1 -Speed 2.9         # 先把速度改成 2.9 m/s（≈5'45"/km）
+powershell -ExecutionPolicy Bypass -File run.ps1 -Watch             # 后台跑 + 常驻守护：规划器保存即重启
 ```
 
 速度在 `config.yaml` 的 `v`（米/秒）：`2.9` 约 5 分 45 秒每公里，适合校园跑判定；原仓库默认 `5.56` 是 3 分每公里，多半会被判异常。
@@ -136,7 +138,7 @@ python scripts\selfcheck.py
 campus-run-sim/
 ├─ setup.ps1  run.ps1  planner.ps1      入口
 ├─ planner/   route_plan.py  planner.html
-├─ tools/     make_route*.py
+├─ tools/     make_route*.py  set_speed.py
 ├─ windows/   start.ps1  restart_watch.ps1
 ├─ docs/      planner.png
 ├─ scripts/   selfcheck.py  setup_deps.py
