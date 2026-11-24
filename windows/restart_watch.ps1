@@ -55,6 +55,7 @@ function Start-Sim {
 }
 
 $last = [datetime]'2000-01-01'
+if (Test-Path $flag) { $last = (Get-Item $flag).LastWriteTime }
 Start-Sim
 while ($true) {
     if (Test-Path $flag) {
